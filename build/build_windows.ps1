@@ -22,13 +22,18 @@ Write-Host "[3/4] Construction de l'exécutable..."
 & .\.venv\Scripts\pyinstaller.exe --noconfirm --clean --windowed --name PlaylistYouTubeStudio --add-binary "app\bin\ffmpeg.exe;bin" app\main.py
 
 Write-Host "[4/4] Génération de l'installeur Inno Setup..."
-$iscc = $null
-foreach ($candidate in @("$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")) {
-  if (Test-Path $candidate) { $iscc = $candidate; break }
-}
+$iscc = Get-ChildItem -Path "C:\Program Files*" -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $iscc) {
-  Write-Warning "Inno Setup 6 n'est pas installé. L'exécutable est disponible dans dist\PlaylistYouTubeStudio."
-  exit 0
+  throw "Inno Setup 6 est introuvable. Installez-le avant de lancer la compilation."
 }
-& $iscc (Join-Path $Root "installer\PlaylistYouTubeStudio.iss")
-Write-Host "Terminé. Installeur : dist\PlaylistYouTubeStudio-Setup.exe"
+$dist = Join-Path $Root "dist"
+New-Item -ItemType Directory -Force -Path $dist | Out-Null
+& $iscc.FullName "/O$dist" (Join-Path $Root "installer\PlaylistYouTubeStudio.iss")
+if ($LASTEXITCODE -ne 0) {
+  throw "Inno Setup a échoué avec le code $LASTEXITCODE."
+}
+$setup = Join-Path $dist "PlaylistYouTubeStudio-Setup.exe"
+if (-not (Test-Path $setup)) {
+  throw "L'installeur attendu n'a pas été créé : $setup"
+}
+Write-Host "Terminé. Installeur : $setup"
